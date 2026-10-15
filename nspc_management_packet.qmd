@@ -369,7 +369,7 @@ for (name in df_names_esc) {
 ## Import commercial data ####
 
 for (file in list.files(path = paste0('Q:/Salmon/COMMERCIAL- salmon/', yr, ' Commercial'),
-                        pattern = '\\.xlsx$', full.names = T)) {
+                        pattern = '\\.xlsx$', full.names = T) %>% str_subset(pattern = "~\\$", negate = TRUE)) {
   
   # Get available sheets in the current file to prevent errors
   available_sheets <- excel_sheets(file)
