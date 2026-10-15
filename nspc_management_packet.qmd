@@ -7,7 +7,7 @@ toc: true
 
 # Data source
 
-This management packet pulls data directly from the files contained in "Q:\\Salmon\\COMMERCIAL-salmon" and "Q:\\Salmon\\ESCAPEMENT- Salmon".
+This management packet pulls data directly from the files contained in local drives at "Q:\\Salmon\\COMMERCIAL-salmon" and "Q:\\Salmon\\ESCAPEMENT- Salmon".
 
 Historical data is used to calculate escapement and harvest metrics and the current year is not included in these calculations.
 
