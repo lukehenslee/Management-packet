@@ -13,7 +13,7 @@ Historical data is used to calculate escapement and harvest metrics and the curr
 
 For pink salmon, only even or odd year data is used to calculate historical metrics depending on the current year. Norton Sound is generally an even-year dominant pink salmon system.
 
-A version that includes R script can be found [here](https://github.com/lukehenslee/ADF-G_Nome/blob/aee917e00db44a13370b0108b49e53f0ab162c6f/nspc_management_packet_test.qmd).
+A version that includes R script can be found [here](https://github.com/lukehenslee/Management-packet/blob/master/nspc_management_packet.qmd).
 
 ```{r}
 #| label: Start up
