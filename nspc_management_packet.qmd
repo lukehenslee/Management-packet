@@ -82,7 +82,8 @@ df_names_esc <- ls(pattern = '^(Pil|Sna|Nom|Eld|Niu|Kwi|Ung|Sha|Nor)', envir = .
 
 # Format escapement data ####
 
-esc_format <- function(df) {
+esc_format <- function(df, df_name) {
+  
   esc_current <- df %>% 
     select(where(~ any(str_detect(as.character(.), "Date"), na.rm = TRUE) ||
                    any(.x %in% 1981:2026, na.rm = TRUE))) %>% 
@@ -125,11 +126,11 @@ esc_format <- function(df) {
     arrange(date) %>% 
     group_by(year) %>% 
     mutate(cum_esc = cumsum(replace_na(esc, 0))) %>% # Calculate yearly cumulative escapement
-    ungroup() %>% 
-    # This if/else filter will use even/odd years for pinks depending on current year ('yr')
-    filter(if(grepl('PINK', deparse(substitute(df))) == TRUE) { 
-      year(date) %% 2 == yr %% 2
-    } else { TRUE }) %>%
+    ungroup() 
+  
+  esc_hist_filtered <- esc_hist %>% 
+    # This filter will use even/odd years for pinks depending on current year ('yr')
+    filter(!grepl("PINK", df_name) | (year(date) %% 2 == yr %% 2)) %>% 
     filter(year(date) < yr) %>% 
     group_by(day_of_year = format(date, "%m-%d")) %>%
     # mutate() adds the new columns while keeping all original rows
@@ -139,7 +140,8 @@ esc_format <- function(df) {
            q75 = quantile(esc, probs = 0.75, na.rm = TRUE),
            cum_q25 = quantile(cum_esc, probs = 0.25, na.rm = TRUE), 
            cum_q50 = quantile(cum_esc, probs = 0.50, na.rm = TRUE), 
-           cum_q75 = quantile(cum_esc, probs = 0.75, na.rm = TRUE)
+           cum_q75 = quantile(cum_esc, probs = 0.75, na.rm = TRUE),
+           n = length(unique(year))
     ) %>%
     # Always ungroup when you're finished
     ungroup() %>%
@@ -148,15 +150,26 @@ esc_format <- function(df) {
     # Remove the helper grouping column
     select(-c(year, esc, date, cum_esc)) 
   
-  esc <- left_join(esc_current, esc_hist, by = 'day_of_year') %>% 
+  esc <- left_join(esc_current, esc_hist_filtered, by = 'day_of_year') %>% 
     select(-day_of_year)
   
   return(esc)
 }
 
 # Apply function to imported escapement data
-list2env(lapply(mget(df_names_esc), 
-                esc_format), envir = .GlobalEnv)
+# list2env(lapply(mget(df_names_esc), 
+#                 esc_format), envir = .GlobalEnv)
+
+# Apply function to data
+for (name in df_names_esc) {
+  # Pull the actual data frame from the environment using its text name
+  
+  # Run it through the pipeline
+  processed_df <- esc_format(get(name), df_name = name)
+  
+  # Save it back into the Global Environment
+  assign(name, processed_df, envir = .GlobalEnv)
+}
 ```
 
 ```{r}
@@ -215,7 +228,7 @@ daily_esc_plot <- function(df) {
   return(plot)
 }
 
-# Apply fucntion to data
+# Apply function to data
 for (name in df_names_esc) {
   # Pull the actual data frame from the environment using its text name
   
@@ -405,7 +418,7 @@ df_names_comm <- ls(pattern = '^(NOME|ELIM|GOLOVIN|NORTBAY|SHAK|UNK)', envir = .
 
 ## Format commercial data ####
 
-comm_format <- function(df) {
+comm_format <- function(df, df_name) {
   # The first part of this function deletes all unwanted columns and rows
     first_date_col <- df %>%
     select(where(~ any(grepl("date", .x, ignore.case = TRUE)) && 
@@ -507,11 +520,11 @@ comm_current <- list(harv, hours, permits) %>%
 comm_hist <- list(harv, hours, permits) %>% 
   reduce(full_join, by = 'date') %>% 
   mutate(across(c(hours, permits, harv), as.numeric),
-         cpue = (harv/hours/permits)) %>% 
-  filter(year(date) != yr) %>% 
-  filter(if(grepl('PINKS', deparse(substitute(df))) == TRUE) { 
-    year(date) %% 2 == yr %% 2
-  } else { TRUE }) %>%
+         cpue = (harv/hours/permits)) 
+
+comm_hist_filtered <- comm_hist %>% 
+  filter(!grepl('PINK', df_name) | (year(date) %% 2 == yr %% 2)) %>% 
+  filter(year(date) < yr) %>% 
   group_by(year(date)) %>%
   arrange(date) %>%
   mutate(
@@ -520,6 +533,7 @@ comm_hist <- list(harv, hours, permits) %>%
     cum_hours = cumsum(replace_na(hours, 0))
   ) %>%
   ungroup() %>% 
+  mutate(n = length(unique(year(date)))) %>% 
   select(-'year(date)') %>% 
   group_by(day_of_year = format(date, "%m-%d")) %>%
   # mutate() adds the new columns while keeping all original rows
@@ -543,17 +557,22 @@ comm_hist <- list(harv, hours, permits) %>%
   select(-c(harv, date, hours, permits, cpue, cum_cpue, cum_harv, cum_hours))
 
 # Combine
-comm <- left_join(comm_current, comm_hist, by = 'day_of_year') %>% 
+comm <- left_join(comm_current, comm_hist_filtered, by = 'day_of_year') %>% 
   select(-day_of_year)
 
-rm(comm_current, comm_hist, harv, permits, hours)
+# rm(comm_current, comm_hist, harv, permits, hours)
 
 return(comm)
 }
 
-# Run df_names_comm through the comm_format function
-list2env(lapply(mget(df_names_comm), 
-                comm_format), envir = .GlobalEnv)
+for (name in df_names_comm) {
+  
+  # Run it through the pipeline
+  processed_df <- comm_format(get(name), df_name = name)
+  
+  # Save it back into the Global Environment
+  assign(name, processed_df, envir = .GlobalEnv)
+}
 ```
 
 ```{r}
@@ -602,7 +621,7 @@ daily_cpue_plot <- function(df) {
                         paste0(str_to_sentence(substring(sub('.*_', '', 
                         deparse(name)), 1, nchar(sub('.*_', '', deparse(name))) -2))), ' Salmon- CPUE by date'), 
          subtitle = paste0('CPUE by date in ', yr),
-         caption = 'NOTE: Dashed lines are smoothed 25th, 50th, and 75th historical quartiles',
+         caption = paste0('NOTE: Dashed lines are smoothed 25th, 50th, and 75th historical quartiles from ', as.integer(df[1, 'n']), ' years of data.'),
          x = 'date',
          y = 'cpue') +
     geom_smooth(data = df, aes(x = date, y = cpue_q25, group = year(date)),
@@ -624,8 +643,6 @@ daily_cpue_plot <- function(df) {
 
 # Apply function to data
 for (name in df_names_comm) {
-  # Pull the actual data frame from the environment using its text name
-  #current_df <- get(name)
   
   # Run it through the pipeline
   processed_df <- daily_cpue_plot(get(name))
@@ -683,7 +700,7 @@ cum_cpue_plot <- function(df) {
                         paste0(str_to_sentence(substring(sub('.*_', '', 
                         deparse(name)), 1, nchar(sub('.*_', '', deparse(name))) -2))), ' Salmon- Cumulative CPUE'), 
          subtitle = paste0('Cumulative CPUE in ', yr, ': ', round(df[nrow(df), 'cum_cpue'], 2)),
-         caption = 'NOTE: Dashed lines are 25th, 50th, and 75th historical quartiles',
+         caption = paste0('NOTE: Dashed lines are 25th, 50th, and 75th historical quartiles from ', as.integer(df[1, 'n']), ' years of data.'),
          x = 'date',
          y = 'cpue') +
     geom_line(data = df, aes(x = date, y = cum_cpue_q25, group = year(date)),
