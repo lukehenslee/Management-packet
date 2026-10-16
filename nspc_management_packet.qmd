@@ -283,7 +283,7 @@ cum_esc_plot <- function(df) {
                                                   nchar(sub('.*_', '', deparse(name))) -1)), ' Salmon- Cumulative escapement'), 
          subtitle = paste0('Cumulative escapement in ', yr, ': ', comma(as.integer(df[which.max(df$cum_esc), 'cum_esc'])), 
                            ' fish'),
-         caption = 'NOTE: Dashed lines are 25th, 50th, and 75th historical quartiles',
+         caption = paste0('NOTE: Dashed lines are 25th, 50th, and 75th historical quartiles from ', as.integer(df[1, 'n']), ' years of data.'),
          x = 'date',
          y = 'escapement') +
     # Range goal
@@ -868,19 +868,54 @@ for (name in df_names_comm[grepl('CHUM', df_names_comm)]) {
 
 ## Port Clarence Escapement
 
+### Pilgrim River weir
+
+#### King Salmon
 ```{r}
-#| label: Pilgrim weir
+#| label: Pilgrim King
+#| message: false
+#| warning: false
+#| include: false
+#Pilgrim_KING_daily_plot
+Pilgrim_KING_cum_plot
+```
+
+#### Chum Salmon
+```{r}
+#| label: Pilgrim chum
+#| message: false
+#| warning: false
+#| include: false
+#Pilgrim_CHUM_daily_plot
+Pilgrim_KING_cum_plot
+```
+
+#### Pink Salmon
+```{r}
+#| label: Pilgrim pink
+#| message: false
+#| warning: false
+#| include: false
+#Pilgrim_PINK_daily_plot
+Pilgrim_PINK_cum_plot
+```
+
+#### Sockeye Salmon
+```{r}
+#| label: Pilgrim sockeye
+#| message: false
+#| warning: false
+#| include: false
+#Pilgrim_SOCKEYE_daily_plot
+Pilgrim_SOCKEYE_cum_plot
+```
+
+#### Coho Salmon
+```{r}
+#| label: Pilgrim coho
 #| echo: false
 #| message: false
 #| warning: false
-#Pilgrim_KING_daily_plot
-Pilgrim_KING_cum_plot
-#Pilgrim_CHUM_daily_plot
-Pilgrim_CHUM_cum_plot
-#Pilgrim_PINK_daily_plot
-Pilgrim_PINK_cum_plot
-#Pilgrim_SOCKEYE_daily_plot
-Pilgrim_SOCKEYE_cum_plot
 #Pilgrim_COHO_daily_plot
 Pilgrim_COHO_cum_plot
 ```
@@ -891,25 +926,103 @@ Pilgrim_COHO_cum_plot
 
 ### Snake River weir
 
+#### King Salmon
 ```{r}
-#| label: Snake weir
-#| echo: false
+#| label: Snake King
 #| message: false
 #| warning: false
-#Snake_KING_daily_plot
+#| include: false
 Snake_KING_cum_plot
-#Snake_CHUM_daily_plot
+```
+
+#### Chum Salmon
+```{r}
+#| label: Snake chum 
+#| message: false
+#| warning: false
+#| include: false
 Snake_CHUM_cum_plot
-#Snake_PINK_daily_plot
+```
+
+#### Pink Salmon
+```{r}
+#| label: Snake pink
+#| message: false
+#| warning: false
+#| include: false
 Snake_PINK_cum_plot
-#Snake_SOCKEYE_daily_plot
-Snake_SOCKEYE_cum_plot
+```
+
+#### Sockeye Salmon
+```{r}
+#| label: Snake sockeye
+#| message: false
+#| warning: false
+#| include: false
+Snake_PINK_cum_plot
+```
+
+#### Coho Salmon
+```{r}
+#| label: Snake coho
+#| message: false
+#| warning: false
+#| include: false
 #Snake_COHO_daily_plot
 Snake_COHO_cum_plot
 ```
 
 ### Nome River weir
 
+```{r}
+#| label: Nome King
+#| message: false
+#| warning: false
+#| include: false
+Nome_KING_cum_plot
+```
+
+#### Chum Salmon
+```{r}
+#| label: Nome chum 
+#| message: false
+#| warning: false
+#| include: false
+Nome_CHUM_cum_plot
+```
+
+#### Pink Salmon
+```{r}
+#| label: Nome pink
+#| message: false
+#| warning: false
+#| include: false
+Nome_PINK_cum_plot
+```
+
+#### Sockeye Salmon
+```{r}
+#| label: Nome sockeye
+#| message: false
+#| warning: false
+#| include: false
+Nome_PINK_cum_plot
+```
+
+#### Coho Salmon
+```{r}
+#| label: Nome coho
+#| message: false
+#| warning: false
+#| include: false
+#Nome_COHO_daily_plot
+Nome_COHO_cum_plot
+```
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: Nome weir
 #| echo: false
@@ -928,7 +1041,11 @@ Nome_COHO_cum_plot
 ```
 
 ### Eldorado River weir
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: Eldo weir
 #| echo: false
@@ -947,7 +1064,11 @@ Eldorado_COHO_cum_plot
 ```
 
 ## Nome Subdistrict Commercial Harvest
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: SD1 comm harvest
 #| echo: false
@@ -982,7 +1103,11 @@ NOME_COHOS_cum_harv_plot
 ## Golovin Subdistrict Escapement
 
 ### Niukluk River weir
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: Niukluk weir
 #| echo: false
@@ -999,7 +1124,11 @@ Niukluk_COHO_cum_plot
 ```
 
 ## Golovin Subdistrict Commercial Harvest
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: SD2 comm harvest
 #| echo: false
@@ -1034,7 +1163,11 @@ GOLOVIN_COHOS_cum_harv_plot
 ## Elim Subdistrict Escapement
 
 ### Kwiniuk River tower
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: Kwiniuk tower
 #| echo: false
@@ -1053,7 +1186,11 @@ Kwiniuk_COHO_cum_plot
 ```
 
 ## Elim Subdistrict Commercial Harvest
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: SD3 comm harvest
 #| echo: false
@@ -1086,9 +1223,12 @@ ELIM_COHOS_cum_harv_plot
 # Subdistrict 4- Norton Bay
 
 ## Norton Bay Subdistrict Escapement
-
 ### Ungalik River tower
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: Ungalik tower
 #| echo: false
@@ -1107,7 +1247,11 @@ Ungalik_COHO_cum_plot
 ```
 
 ## Norton Bay Subdistrict Commercial Harvest
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: SD4 comm harvest
 #| echo: false
@@ -1142,7 +1286,11 @@ NORTBAY_COHOS_cum_harv_plot
 ## Shaktoolik Subdistrict Escapement
 
 ### Shaktoolik River tower
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: Shaktoolik tower
 #| echo: false
@@ -1159,7 +1307,11 @@ Shaktoolik_COHO_cum_plot
 ```
 
 ## Shaktoolik Subdistrict Commercial Harvest
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: SD5 comm harvest
 #| echo: false
@@ -1194,7 +1346,11 @@ SHAK_COHOS_cum_harv_plot
 ## Unalakleet Subdistrict Escapement
 
 ### North River tower
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: North tower
 #| echo: false
@@ -1211,7 +1367,11 @@ North_COHO_cum_plot
 ```
 
 ## Unalakleet Subdistrict Commercial Harvest
-
+#### King Salmon
+#### Chum Salmon
+#### Pink Salmon
+#### Sockeye Salmon
+#### Coho Salmon
 ```{r}
 #| label: SD6 comm harvest
 #| echo: false
