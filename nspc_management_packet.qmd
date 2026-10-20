@@ -12,11 +12,11 @@ toc-depth: 4
 
 This management packet pulls data directly from the files contained in local drives at "Q:\\Salmon\\COMMERCIAL-salmon" and "Q:\\Salmon\\ESCAPEMENT- Salmon".
 
-Historical data is used to calculate escapement and harvest metrics and the current year is not echod in these calculations.
+Historical data is used to calculate escapement and harvest metrics and the current year is not included in these calculations.
 
 For pink salmon, only even or odd year data is used to calculate historical metrics depending on the current year. Norton Sound is generally an even-year dominant pink salmon system.
 
-A version that echos R script can be found [here](https://github.com/lukehenslee/Management-packet/blob/master/nspc_management_packet.qmd).
+A version that includes R script can be found [here](https://github.com/lukehenslee/Management-packet/blob/master/nspc_management_packet.qmd).
 
 ```{r}
 #| label: Start up
