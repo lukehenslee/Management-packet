@@ -906,7 +906,7 @@ Pilgrim_KING_cum_plot
 #| message: false
 #| warning: false
 #Pilgrim_CHUM_daily_plot
-Pilgrim_KING_cum_plot
+Pilgrim_CHUM_cum_plot
 ```
 
 #### Pink Salmon
