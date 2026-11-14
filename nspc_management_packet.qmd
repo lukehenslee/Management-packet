@@ -13,6 +13,8 @@ link-external-newwindow: true
 
 This management packet pulls data directly from the files contained in local drives at "Q:\\Salmon\\COMMERCIAL-salmon" and "Q:\\Salmon\\ESCAPEMENT- Salmon".
 
+Escapement plots show current year data, as well as historical parent year data.
+
 Historical data is used to calculate escapement and harvest metrics and the current year is not included in these calculations.
 
 For pink salmon, only even or odd year data is used to calculate historical metrics depending on the current year. Norton Sound is generally an even-year dominant pink salmon system.
@@ -106,9 +108,16 @@ esc_format <- function(df, df_name) {
     # Calculate yearly cumulative escapement- days with no counts will be blank
     mutate(cum_esc = ifelse(is.na(esc), NA, cumsum(replace_na(esc, 0)))) %>% 
     ungroup() %>% 
-    mutate(day_of_year= format(date, "%m-%d")) %>% 
-    select(-year) %>% 
-    filter(year(date) == yr)
+    mutate(day_of_year= format(date, "%m-%d")) %>%
+    select(-date) %>% 
+    filter(year %in% c((yr-5):yr)) %>% 
+    pivot_wider(
+      id_cols = day_of_year,
+      names_from = year,
+      values_from = c(esc, cum_esc),
+      names_glue = "{.value}_{year}"
+    ) %>% 
+    select(-any_of(c(paste0('esc_', (yr-5):(yr-1)))))
   
   esc_hist <- df %>% 
     select(where(~ any(str_detect(as.character(.), "Date"), na.rm = TRUE) ||
@@ -150,9 +159,11 @@ esc_format <- function(df, df_name) {
     # Deduplicate
     distinct(day_of_year, .keep_all = T) %>% 
     # Remove the helper grouping column
-    select(-c(year, esc, date, cum_esc)) 
+    select(-c(year, esc, cum_esc)) 
   
   esc <- left_join(esc_current, esc_hist_filtered, by = 'day_of_year') %>% 
+    rename_with(~ 'esc', .cols = paste0("esc_", yr)) %>% 
+    rename_with(~ 'cum_esc', .cols = paste0("cum_esc_", yr)) %>% 
     select(-day_of_year)
   
   return(esc)
@@ -265,19 +276,19 @@ cum_esc_plot <- function(df) {
                             nchar(sub('_.*', '', deparse(name)))))
   
   start <- if(any(df$esc > 0, na.rm = T) == F) {
-    df[min(which(df$cum_q75 > 0)), 2, drop = TRUE]
+    df[min(which(df$cum_q75 > 0)), 'date', drop = TRUE]
   } else if (min(which(df$esc > 0)) < min(which(df$cum_q75 > 0))) {
-    df[min(which(df$esc > log(max(df$cum_esc, na.rm = T)) * 0.2)), 2, drop = TRUE]
+    df[min(which(df$esc > log(max(df$cum_esc, na.rm = T)) * 0.8)), 'date', drop = TRUE]
   } else {
-    df[min(which(df$cum_q75 > 0)), 2, drop = TRUE]
+    df[min(which(df$cum_q75 > 0)), 'date', drop = TRUE]
   }
   
   end <- if(any(df$esc > 0, na.rm = T) == F) {
-    df[which.min(abs(log(df$cum_q50) - (max(log(df$cum_q50)) - max(log(df$cum_q50)) * 0.001))), 2, drop = TRUE]
+    df[which.min(abs(log(df$cum_q50) - (max(log(df$cum_q50)) - max(log(df$cum_q50)) * 0.001))), 'date', drop = TRUE]
   } else if (max(df$cum_esc, na.rm = T) > max(df$cum_q50) - (max(df$cum_q50) * 0.001)) {
-    df[which.max(df$cum_esc) + 3, 2, drop = TRUE]
+    df[which.max(df$cum_esc) + 3, 'date', drop = TRUE]
   } else {
-    df[which.min(abs(log(df$cum_q50) - (max(log(df$cum_q50)) - max(log(df$cum_q50)) * 0.001))), 2, drop = TRUE]
+    df[which.min(abs(log(df$cum_q50) - (max(log(df$cum_q50)) - max(log(df$cum_q50)) * 0.001))), 'date', drop = TRUE]
   }
   
   fill <- case_when(species == 'KING' ~ 'orange',
@@ -293,15 +304,9 @@ cum_esc_plot <- function(df) {
                      TRUE              ~ 'lightsalmon4') 
   
   plot <- ggplot() +
-    labs(title = paste0(substring(sub('_.*', '', deparse(name)), 2), ' River ', 
-                        str_to_sentence(substring(sub('.*_', '', deparse(name)), 1, 
-                                                  nchar(sub('.*_', '', deparse(name))) -1)), ' Salmon- Cumulative escapement'), 
-         subtitle = paste0('Cumulative escapement in ', yr, ': ', comma(as.integer(df[which.max(df$cum_esc), 'cum_esc'])), 
-                           ' fish'),
-         caption = paste0('NOTE: Dashed lines are 25th, 50th, and 75th historical quartiles from ', as.integer(df[1, 'n']), ' years of data.'),
-         x = 'date',
-         y = 'escapement') +
-    # Range goal
+    
+    # Escapement goals
+    ## Range goal
     (if (name %in% goals$goals && is.na(goals[goals$goals == name, 'lower']) == F)
       geom_rect(fill = paste0(fill), alpha = .4, 
                 aes(xmin = as.Date(paste0(start)),xmax = as.Date(paste0(end)),
@@ -316,9 +321,9 @@ cum_esc_plot <- function(df) {
       annotate(geom = 'text', hjust = 0, vjust = -0.5, x = as.Date(paste0(start)), y = goals[goals$goals == name, 'upper'],
                label = paste0('Upper goal: ' , comma(as.integer(goals[goals$goals == name, 'upper']))),
       ) else NULL) +
-    # Point goal
+    ## Point goal
     (if (name %in% goals$goals && is.na(goals[goals$goals == name, 'point']) == F)
-      geom_segment(color = paste0(color), linewidth = 0.75, linetype = 6,
+      geom_segment(color = paste0(color), linewidth = 0.5, alpha = 0.75,
                    aes(x = as.Date(paste0(start)), xend = as.Date(paste0(end)),
                        y = goals[goals$goals == name, 'point'],
                        yend = goals[goals$goals == name, 'point']),
@@ -327,9 +332,9 @@ cum_esc_plot <- function(df) {
       annotate(geom = 'text', hjust = 0, vjust = -0.5, x = as.Date(paste0(start)), y = goals[goals$goals == name, 'point'],
                label = paste0('Goal: ' , comma(as.integer(goals[goals$goals == name, 'point']))),
       ) else NULL) +
-    # Pink even year goal
+    ## Pink even year goal
     (if (name %in% goals$goals && is.na(goals[goals$goals == name, 'even']) == F && yr %% 2 == 0)
-      geom_segment(color = paste0(color), linewidth = 0.5, linetype = 6, 
+      geom_segment(color = paste0(color), linewidth = 0.5, alpha = 0.75, 
                    aes(x = as.Date(paste0(start)), xend = as.Date(paste0(end)),
                        y = goals[goals$goals == name, 'even'],
                        yend = goals[goals$goals == name, 'even']),
@@ -338,9 +343,9 @@ cum_esc_plot <- function(df) {
       annotate(geom = 'text', hjust = 0, vjust = -0.5, x = as.Date(paste0(start)), y = goals[goals$goals == name, 'even'],
                label = paste0('Goal: ' , comma(as.integer(goals[goals$goals == name, 'even']))),
       ) else NULL) +
-    # Pink odd year goal
+    ## Pink odd year goal
     (if (name %in% goals$goals && is.na(goals[goals$goals == name, 'odd']) == F && yr %% 2 == 1)
-      geom_segment(color = paste0(color), linewidth = 0.5, linetype = 6,
+      geom_segment(color = paste0(color), linewidth = 0.5, alpha = 0.75,
                    aes(x = as.Date(paste0(start)), xend = as.Date(paste0(end)),
                        y = goals[goals$goals == name, 'odd'],
                        yend = goals[goals$goals == name, 'odd']),
@@ -349,11 +354,50 @@ cum_esc_plot <- function(df) {
       annotate(geom = 'text', hjust = 0, vjust = -0.5, x = as.Date(paste0(start)), y = goals[goals$goals == name, 'odd'],
                label = paste0('Goal: ' , comma(as.integer(goals[goals$goals == name, 'odd']))),
       ) else NULL) +
-    geom_line(data = df, aes(x = date, y = cum_esc), linewidth = 1.25, color = paste0(color)) +
+    
+    # Parent year esc
+    ## 2 year old fish
+    (if (species %in% c('PINK', 'COHO') && paste0("cum_esc_", yr - 2) %in% names(df))
+      geom_line(data = df, aes(x = date, y = .data[[paste0("cum_esc_", yr - 2)]], linetype = as.character(yr - 2)), 
+                linewidth = 0.75, color = paste0(color), alpha = 0.5)) +
+    ## 3 year old fish
+    (if (species %in% c('CHUM', 'COHO') && paste0("cum_esc_", yr - 3) %in% names(df))
+      geom_line(data = df, aes(x = date, y = .data[[paste0("cum_esc_", yr - 3)]], linetype = as.character(yr - 3)), 
+                linewidth = 0.75, color = paste0(color), alpha = 0.5)) +
+    ## 4 year old fish
+    (if (species %in% c('CHUM', 'KING', 'SOCKEYE', 'RED') && paste0("cum_esc_", yr - 4) %in% names(df))
+      geom_line(data = df, aes(x = date, y = .data[[paste0("cum_esc_", yr - 4)]], linetype = as.character(yr - 4)), 
+                linewidth = 0.75, color = paste0(color), alpha = 0.5)) +
+    ## 5 year old fish
+    (if (species %in% c('KING', 'SOCKEYE', 'RED') && paste0("cum_esc_", yr - 5) %in% names(df))
+      geom_line(data = df, aes(x = date, y = .data[[paste0("cum_esc_", yr - 5)]], linetype = as.character(yr - 5)), 
+                linewidth = 0.75, color = paste0(color), alpha = 0.5)) +
+    
+    # Historical quartiles
     geom_line(data = df, aes(x = date, y = cum_q50), linewidth = 0.5, linetype = '12') +
     geom_line(data = df, aes(x = date, y = cum_q25), linewidth = 0.5, linetype = '12') +
     geom_line(data = df, aes(x = date, y = cum_q75), linewidth = 0.5, linetype = '12') +
-    theme(axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 1)) +
+    
+    # Current year esc
+    geom_line(data = df, aes(x = date, y = cum_esc, linetype = as.character(yr)), linewidth = 1.25, color = paste0(color)) +
+    
+    # Labels and themes
+    labs(title = paste0(substring(sub('_.*', '', deparse(name)), 2), ' River ', 
+                        str_to_sentence(substring(sub('.*_', '', deparse(name)), 1, 
+                                                  nchar(sub('.*_', '', deparse(name))) -1)), ' Salmon- Cumulative escapement'), 
+         subtitle = paste0('Cumulative escapement in ', yr, ': ', comma(as.integer(df[which.max(df$cum_esc), 'cum_esc'])), 
+                           ' fish'),
+         caption = paste0('NOTE: Dashed black lines are 25th, 50th, and 75th historical quartiles from ', as.integer(df[1, 'n']), ' years of data.'),
+         y = 'escapement') +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+          legend.key.width = unit(1.25, "cm")) +   
+          scale_linetype_manual(name = 'esc year', 
+                                values = setNames(
+                                  c(1, 2, 3, 4, 5),
+                                  c(as.character(yr), as.character(yr-2), 
+                                    as.character(yr-3), as.character(yr-4), 
+                                    as.character(yr-5)))) +
+    
     scale_x_date(date_breaks = '5 days', date_labels = '%b %d', 
                  limits = as.Date(c(paste0(start), paste0(end))))
   
@@ -363,13 +407,11 @@ cum_esc_plot <- function(df) {
 
 # Apply function to data
 for (name in df_names_esc) {
-  # Pull the actual data frame from the environment using its text name
-  #current_df <- get(name)
   
   # Run it through the pipeline
   processed_df <- cum_esc_plot(get(name))
   
-  # Create the new name (e.g., "df1_plot")
+  # Create the new name 
   new_name <- paste0(name, "_cum_plot")
   
   # Save it back into the Global Environment
@@ -784,7 +826,7 @@ cum_harv_plot <- function(df) {
                       paste0(str_to_sentence(substring(sub('.*_', '', 
                       deparse(name)), 1, nchar(sub('.*_', '', deparse(name))) -2))), ' Salmon- Cumulative harvest'),
        subtitle = paste0('Cumulative harvest in ', yr, ': ', comma(as.integer(df[nrow(df), 'cum_harv']))),
-       caption = 'NOTE: Dashed lines are 25th, 50th, and 75th historical quartiles',
+       caption = paste0('NOTE: Dashed lines are 25th, 50th, and 75th historical quartiles from ', as.integer(df[1, 'n']), ' years of data.'),
        x = 'date',
        y = 'harvest') +
     geom_line(data = df, aes(x = date, y = cum_harv_q25, group = year(date)),
@@ -890,6 +932,7 @@ for (name in df_names_comm[grepl('CHUM', df_names_comm)]) {
 ### Pilgrim River weir
 
 #### King Salmon
+
 ```{r}
 #| label: Pilgrim King
 #| echo: false
@@ -900,6 +943,7 @@ Pilgrim_KING_cum_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: Pilgrim chum
 #| echo: false
@@ -910,6 +954,7 @@ Pilgrim_CHUM_cum_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: Pilgrim pink
 #| echo: false
@@ -920,6 +965,7 @@ Pilgrim_PINK_cum_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: Pilgrim sockeye
 #| echo: false
@@ -930,6 +976,7 @@ Pilgrim_SOCKEYE_cum_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: Pilgrim coho
 #| echo: false
@@ -946,6 +993,7 @@ Pilgrim_COHO_cum_plot
 ### Snake River weir
 
 #### King Salmon
+
 ```{r}
 #| label: Snake King
 #| echo: false
@@ -955,6 +1003,7 @@ Snake_KING_cum_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: Snake chum
 #| echo: false
@@ -964,6 +1013,7 @@ Snake_CHUM_cum_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: Snake pink
 #| message: false
@@ -973,6 +1023,7 @@ Snake_PINK_cum_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: Snake sockeye
 #| message: false
@@ -982,6 +1033,7 @@ Snake_SOCKEYE_cum_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: Snake coho
 #| message: false
@@ -994,6 +1046,7 @@ Snake_COHO_cum_plot
 ### Nome River weir
 
 #### King Salmon
+
 ```{r}
 #| label: Nome King
 #| message: false
@@ -1003,6 +1056,7 @@ Nome_KING_cum_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: Nome chum 
 #| message: false
@@ -1012,6 +1066,7 @@ Nome_CHUM_cum_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: Nome pink
 #| message: false
@@ -1021,6 +1076,7 @@ Nome_PINK_cum_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: Nome sockeye
 #| message: false
@@ -1030,6 +1086,7 @@ Nome_SOCKEYE_cum_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: Nome coho
 #| message: false
@@ -1042,6 +1099,7 @@ Nome_COHO_cum_plot
 ### Eldorado River weir
 
 #### King Salmon
+
 ```{r}
 #| label: Eldorado King
 #| message: false
@@ -1051,6 +1109,7 @@ Eldorado_KING_cum_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: Eldorado chum 
 #| message: false
@@ -1060,6 +1119,7 @@ Eldorado_CHUM_cum_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: Eldorado pink
 #| message: false
@@ -1069,6 +1129,7 @@ Eldorado_PINK_cum_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: Eldorado sockeye
 #| message: false
@@ -1078,6 +1139,7 @@ Eldorado_SOCKEYE_cum_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: Eldorado coho
 #| message: false
@@ -1088,6 +1150,7 @@ Eldorado_COHO_cum_plot
 ```
 
 ## Nome Subdistrict Commercial Harvest
+
 ```{r}
 #| label: SD1 hours
 #| message: false
@@ -1097,6 +1160,7 @@ NOME_cum_hours_plot
 ```
 
 #### King Salmon
+
 ```{r}
 #| label: SD1 King
 #| message: false
@@ -1108,6 +1172,7 @@ NOME_KINGS_cum_harv_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: SD1 chum
 #| message: false
@@ -1119,6 +1184,7 @@ NOME_CHUMS_cum_harv_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: SD1 pink
 #| message: false
@@ -1130,6 +1196,7 @@ NOME_PINKS_cum_harv_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: SD1 red
 #| message: false
@@ -1141,6 +1208,7 @@ NOME_REDS_cum_harv_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: SD1 coho
 #| message: false
@@ -1158,6 +1226,7 @@ NOME_COHOS_cum_harv_plot
 ### Niukluk River weir
 
 #### King Salmon
+
 ```{r}
 #| label: Niukluk King
 #| message: false
@@ -1167,6 +1236,7 @@ Niukluk_KING_cum_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: Niukluk chum 
 #| message: false
@@ -1176,6 +1246,7 @@ Niukluk_CHUM_cum_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: Niukluk pink
 #| message: false
@@ -1185,6 +1256,7 @@ Niukluk_PINK_cum_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: Niukluk sockeye
 #| eval: false
@@ -1195,6 +1267,7 @@ Niukluk_SOCKEYE_cum_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: Niukluk coho
 #| message: false
@@ -1205,6 +1278,7 @@ Niukluk_COHO_cum_plot
 ```
 
 ## Golovin Subdistrict Commercial Harvest
+
 ```{r}
 #| label: SD2 hours
 #| message: false
@@ -1214,6 +1288,7 @@ GOLOVIN_cum_hours_plot
 ```
 
 #### King Salmon
+
 ```{r}
 #| label: SD2 King
 #| message: false
@@ -1225,6 +1300,7 @@ GOLOVIN_KINGS_cum_harv_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: SD2 chum
 #| message: false
@@ -1236,6 +1312,7 @@ GOLOVIN_CHUMS_cum_harv_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: SD2 pink
 #| message: false
@@ -1247,6 +1324,7 @@ GOLOVIN_PINKS_cum_harv_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: SD2 red
 #| message: false
@@ -1258,6 +1336,7 @@ GOLOVIN_REDS_cum_harv_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: SD2 coho
 #| message: false
@@ -1275,6 +1354,7 @@ GOLOVIN_COHOS_cum_harv_plot
 ### Kwiniuk River tower
 
 #### King Salmon
+
 ```{r}
 #| label: Kwiniuk King
 #| message: false
@@ -1284,6 +1364,7 @@ Kwiniuk_KING_cum_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: Kwiniuk chum 
 #| message: false
@@ -1293,6 +1374,7 @@ Kwiniuk_CHUM_cum_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: Kwiniuk pink
 #| message: false
@@ -1302,6 +1384,7 @@ Kwiniuk_PINK_cum_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: Kwiniuk sockeye
 #| message: false
@@ -1311,6 +1394,7 @@ Kwiniuk_SOCKEYE_cum_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: Kwiniuk coho
 #| message: false
@@ -1321,6 +1405,7 @@ Kwiniuk_COHO_cum_plot
 ```
 
 ## Elim Subdistrict Commercial Harvest
+
 ```{r}
 #| label: SD3 hours
 #| message: false
@@ -1330,6 +1415,7 @@ ELIM_cum_hours_plot
 ```
 
 #### King Salmon
+
 ```{r}
 #| label: SD3 King
 #| message: false
@@ -1341,6 +1427,7 @@ ELIM_KINGS_cum_harv_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: SD3 chum
 #| message: false
@@ -1352,6 +1439,7 @@ ELIM_CHUMS_cum_harv_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: SD3 pink
 #| message: false
@@ -1363,6 +1451,7 @@ ELIM_PINKS_cum_harv_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: SD3 red
 #| message: false
@@ -1374,6 +1463,7 @@ ELIM_REDS_cum_harv_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: SD3 coho
 #| message: false
@@ -1391,6 +1481,7 @@ ELIM_COHOS_cum_harv_plot
 ### Ungalik River tower
 
 #### King Salmon
+
 ```{r}
 #| label: Ungalik King
 #| message: false
@@ -1400,6 +1491,7 @@ Ungalik_KING_cum_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: Ungalik chum 
 #| message: false
@@ -1409,6 +1501,7 @@ Ungalik_CHUM_cum_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: Ungalik pink
 #| message: false
@@ -1418,6 +1511,7 @@ Ungalik_PINK_cum_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: Ungalik sockeye
 #| eval: false
@@ -1428,6 +1522,7 @@ Ungalik_SOCKEYE_cum_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: Ungalik coho
 #| message: false
@@ -1438,6 +1533,7 @@ Ungalik_COHO_cum_plot
 ```
 
 ## Norton Bay Subdistrict Commercial Harvest
+
 ```{r}
 #| label: SD4 hours
 #| message: false
@@ -1447,6 +1543,7 @@ NORTBAY_cum_hours_plot
 ```
 
 #### King Salmon
+
 ```{r}
 #| label: SD4 King
 #| message: false
@@ -1458,6 +1555,7 @@ NORTBAY_KINGS_cum_harv_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: SD4 chum
 #| message: false
@@ -1469,6 +1567,7 @@ NORTBAY_CHUMS_cum_harv_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: SD4 pink
 #| message: false
@@ -1480,6 +1579,7 @@ NORTBAY_PINKS_cum_harv_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: SD4 red
 #| message: false
@@ -1491,6 +1591,7 @@ NORTBAY_REDS_cum_harv_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: SD4 coho
 #| message: false
@@ -1508,6 +1609,7 @@ NORTBAY_COHOS_cum_harv_plot
 ### Shaktoolik River tower
 
 #### King Salmon
+
 ```{r}
 #| label: Shaktoolik King
 #| message: false
@@ -1517,6 +1619,7 @@ Shaktoolik_KING_cum_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: Shaktoolik chum 
 #| message: false
@@ -1526,6 +1629,7 @@ Shaktoolik_CHUM_cum_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: Shaktoolik pink
 #| message: false
@@ -1535,6 +1639,7 @@ Shaktoolik_PINK_cum_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: Shaktoolik sockeye
 #| eval: false
@@ -1545,6 +1650,7 @@ Shaktoolik_SOCKEYE_cum_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: Shaktoolik coho
 #| message: false
@@ -1555,6 +1661,7 @@ Shaktoolik_COHO_cum_plot
 ```
 
 ## Shaktoolik Subdistrict Commercial Harvest
+
 ```{r}
 #| label: SD5 hours
 #| message: false
@@ -1564,6 +1671,7 @@ SHAK_cum_hours_plot
 ```
 
 #### King Salmon
+
 ```{r}
 #| label: SD5 King
 #| message: false
@@ -1575,6 +1683,7 @@ SHAK_KINGS_cum_harv_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: SD5 chum
 #| message: false
@@ -1586,6 +1695,7 @@ SHAK_CHUMS_cum_harv_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: SD5 pink
 #| message: false
@@ -1597,6 +1707,7 @@ SHAK_PINKS_cum_harv_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: SD5 red
 #| eval: false
@@ -1609,6 +1720,7 @@ SHAK_REDS_cum_harv_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: SD5 coho
 #| message: false
@@ -1626,6 +1738,7 @@ SHAK_COHOS_cum_harv_plot
 ### North River tower
 
 #### King Salmon
+
 ```{r}
 #| label: North King
 #| message: false
@@ -1635,6 +1748,7 @@ North_KING_cum_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: North chum 
 #| message: false
@@ -1644,6 +1758,7 @@ North_CHUM_cum_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: North pink
 #| message: false
@@ -1653,6 +1768,7 @@ North_PINK_cum_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: North sockeye
 #| eval: false
@@ -1663,6 +1779,7 @@ North_SOCKEYE_cum_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: North coho
 #| message: false
@@ -1673,6 +1790,7 @@ North_COHO_cum_plot
 ```
 
 ## Unalakleet Subdistrict Commercial Harvest
+
 ```{r}
 #| label: SD6 hours
 #| message: false
@@ -1682,6 +1800,7 @@ UNK_cum_hours_plot
 ```
 
 #### King Salmon
+
 ```{r}
 #| label: SD6 King
 #| message: false
@@ -1693,6 +1812,7 @@ UNK_KINGS_cum_harv_plot
 ```
 
 #### Chum Salmon
+
 ```{r}
 #| label: SD6 chum
 #| message: false
@@ -1704,6 +1824,7 @@ UNK_CHUMS_cum_harv_plot
 ```
 
 #### Pink Salmon
+
 ```{r}
 #| label: SD6 pink
 #| message: false
@@ -1715,6 +1836,7 @@ UNK_PINKS_cum_harv_plot
 ```
 
 #### Sockeye Salmon
+
 ```{r}
 #| label: SD6 red
 #| message: false
@@ -1726,6 +1848,7 @@ UNK_REDS_cum_harv_plot
 ```
 
 #### Coho Salmon
+
 ```{r}
 #| label: SD6 coho
 #| message: false
